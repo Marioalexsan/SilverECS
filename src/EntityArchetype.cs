@@ -10,7 +10,7 @@ using System.Threading.Tasks;
 namespace SilverECS
 {
     [DebuggerDisplay("Filter = {ToString()}, Entities = {Count}")]
-    public class EntityArchetype
+    internal class EntityArchetype
     {
         private const int PreallocationSize = 256;
 
@@ -64,7 +64,7 @@ namespace SilverECS
 
         public bool GetComponent(EntityID entityID, Type type, out object component)
         {
-            if (!_entityToIndex.TryGetValue(entityID, out int index))
+            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
             {
                 component = default;
                 return false;
@@ -113,7 +113,7 @@ namespace SilverECS
 
         public bool SetComponent(EntityID entityID, Type type, object component)
         {
-            if (!_entityToIndex.TryGetValue(entityID, out int index))
+            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
             {
                 return false;
             }
@@ -136,7 +136,7 @@ namespace SilverECS
         public bool SetComponent<T>(EntityID entityID, in T component)
             where T : struct
         {
-            if (!_entityToIndex.TryGetValue(entityID, out int index))
+            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
             {
                 return false;
             }
@@ -215,6 +215,7 @@ namespace SilverECS
             }
 
             _entityToIndex.Remove(entityID);
+            _locationToEntity.RemoveAt(index);
             return true;
         }
 

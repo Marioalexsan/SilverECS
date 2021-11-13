@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net5.0</TargetFramework>
+    <Platforms>x64;x86</Platforms>
+  </PropertyGroup>
+
+  <PropertyGroup>
+    <EnableDefaultItems>false</EnableDefaultItems>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="src\AssemblyInfo.cs" />
+    <Compile Include="src\EntityArchetype.cs" />
+    <Compile Include="src\EntityComponentManager.cs" />
+    <Compile Include="src\EntityID.cs" />
+    <Compile Include="src\EntityIDExtension.cs" />
+    <Compile Include="src\EntityParent.cs" />
+    <Compile Include="src\IEntityComponentManager.cs" />
+    <Compile Include="src\IMessageContainer.cs" />
+    <Compile Include="src\ISystem.cs" />
+    <Compile Include="src\MessageContainer.cs" />
+    <Compile Include="src\World.cs" />
+  </ItemGroup>
+
+
+</Project>

@@ -4,11 +4,17 @@ using System.Collections;
 using System.Linq;
 using System.Text;
 using System.Threading.Tasks;
+using System.Diagnostics;
 
 namespace SilverECS
 {
-    public class ECManager
+    [DebuggerDisplay("Entities = {EntityCount}, Factories = {_factories.Count}")]
+    internal class EntityComponentManager : IEntityComponentManager
     {
+        private World _world;
+
+        private Dictionary<int, Action<EntityID, World>> _factories = new Dictionary<int, Action<EntityID, World>>();
+
         private EntityArchetype _emptyArchetype = new EntityArchetype(new Type[0]);
 
         private HashSet<EntityArchetype> _archetypes = new HashSet<EntityArchetype>();
@@ -19,15 +25,20 @@ namespace SilverECS
 
         private HashSet<EntityID> _entities = new HashSet<EntityID>();
 
-        private Dictionary<EntityID, EntityArchetype> _entityArchetypes = new Dictionary<EntityID, EntityArchetype>();
+        private Dictionary<EntityID, EntityArchetype> _entityToArchetype = new Dictionary<EntityID, EntityArchetype>();
 
         public int EntityCount => _entities.Count;
 
-        public ECManager()
+        public EntityComponentManager(World world)
         {
+            _world = world;
+
             _archetypes.Add(_emptyArchetype);
         }
 
+        /// <summary>
+        /// Creates an empty entity and returns its ID.
+        /// </summary>
         public EntityID CreateEntity()
         {
             EntityID entity = new EntityID(GetEntityID());
@@ -35,11 +46,29 @@ namespace SilverECS
             _entities.Add(entity);
 
             _emptyArchetype.AddEntity(entity);
-            _entityArchetypes[entity] = _emptyArchetype;
+            _entityToArchetype[entity] = _emptyArchetype;
 
             return entity;
         }
 
+        /// <summary>
+        /// Creates an entity using its entity type's factory, and returns its ID.
+        /// </summary>
+        public EntityID CreateEntity(int entityType)
+        {
+            EntityID entity = CreateEntity();
+
+            if (_factories.ContainsKey(entityType))
+            {
+                _factories[entityType].Invoke(entity, _world);
+            }
+
+            return entity;
+        }
+
+        /// <summary>
+        /// Removes an entity and its components, if it exists.
+        /// </summary>
         public bool DestroyEntity(EntityID entityID)
         {
             if (!_entities.Remove(entityID))
@@ -48,16 +77,64 @@ namespace SilverECS
             }
 
             GetEntityArchetype(entityID).RemoveEntity(entityID);
-            _entityArchetypes.Remove(entityID);
+            _entityToArchetype.Remove(entityID);
 
             return false;
         }
 
+        /// <summary>
+        /// Returns true if the given ID corresponds to an entity, false otherwise.
+        /// </summary>
         public bool EntityExists(EntityID entityID)
         {
             return _entities.Contains(entityID);
         }
 
+        /// <summary>
+        /// If an entity has an <see cref="EntityParent"/> component, the value of
+        /// the parent is returned, otherwise <see cref="EntityID.Null"/> is returned.
+        /// </summary>
+        public EntityID GetParent(EntityID entityID)
+        {
+            if (TryGetComponent(entityID, out EntityParent component))
+            {
+                return component.Parent;
+            }
+            else
+            {
+                return EntityID.Null;
+            }
+        }
+
+        /// <summary>
+        /// Sets a factory for an entity type.
+        /// Afterwards, you can specify that entity type in <see cref="CreateEntity(int)"/>
+        /// to create an entity using that factory.
+        /// </summary>
+        public void SetFactory(int entityType, Action<EntityID, World> factory)
+        {
+            if (factory != null)
+            {
+                _factories[entityType] = factory;
+            }
+            else
+            {
+                _factories.Remove(entityType);
+            }
+        }
+
+        /// <summary>
+        /// Checks if an entity type has a factory assigned.
+        /// </summary>
+        public bool HasFactory(int entityType)
+        {
+            return _factories.ContainsKey(entityType);
+        }
+
+        /// <summary>
+        /// Adds a default-initialized component if the entity doesn't have one of that type already.
+        /// Returns true if the addition succeeded, false otherwise.
+        /// </summary>
         public bool AddComponent<T>(EntityID entityID)
             where T : struct
         {
@@ -78,11 +155,33 @@ namespace SilverECS
             EntityArchetype newArchetype = GetOrCreateArchetype(newFilter);
 
             newArchetype.AddAndPopulateEntity(entityID, components);
-            _entityArchetypes[entityID] = newArchetype;
+            _entityToArchetype[entityID] = newArchetype;
 
             return true;
         }
 
+        /// <summary>
+        /// Adds a component with the given value if the entity doesn't have one of that type already.
+        /// Returns true if the addition succeeded, false otherwise.
+        /// </summary>
+        public bool AddComponent<T>(EntityID entityID, in T component)
+            where T : struct
+        {
+            if (AddComponent<T>(entityID))
+            {
+                SetComponent(entityID, component);
+                return true;
+            }
+            else
+            {
+                return false;
+            }
+        }
+
+        /// <summary>
+        /// Removes the component of the given type if the entity has one.
+        /// Returns true if the removal succeeded, false otherwise.
+        /// </summary>
         public bool RemoveComponent<T>(EntityID entityID)
             where T : struct
         {
@@ -103,12 +202,16 @@ namespace SilverECS
             EntityArchetype newArchetype = GetOrCreateArchetype(newFilter);
 
             newArchetype.AddAndPopulateEntity(entityID, components);
-            _entityArchetypes[entityID] = newArchetype;
+            _entityToArchetype[entityID] = newArchetype;
 
             return true;
         }
 
-        public bool GetComponent<T>(EntityID entityID, out T component)
+        /// <summary>
+        /// If the entity has a component of the given type, returns its value in the out parameter.
+        /// Returns true if the entity does have a component of the given type, false otherwise.
+        /// </summary>
+        public bool TryGetComponent<T>(EntityID entityID, out T component)
             where T : struct
         {
             if (!EntityExists(entityID))
@@ -132,6 +235,24 @@ namespace SilverECS
             }
         }
 
+        /// <summary>
+        /// Returns true if the entity has the given component, false otherwise.
+        /// </summary>
+        public bool HasComponent<T>(EntityID entityID)
+            where T : struct
+        {
+            EntityArchetype archetype;
+
+            return
+                EntityExists(entityID) &&
+                (archetype = GetEntityArchetype(entityID)) != null &&
+                archetype.HasType(typeof(T));
+        }
+
+        /// <summary>
+        /// If the entity has a component of the given type, sets its value to the parameter.
+        /// Returns true if the entity does have a component of the given type, false otherwise.
+        /// </summary>
         public bool SetComponent<T>(EntityID entityID, in T component)
             where T : struct
         {
@@ -154,26 +275,20 @@ namespace SilverECS
             }
         }
 
-        public bool AddAndSetComponent<T>(EntityID entityID, in T component)
-            where T : struct
-        {
-            if (AddComponent<T>(entityID))
-            {
-                SetComponent(entityID, component);
-                return true;
-            }
-            else
-            {
-                return false;
-            }
-        }
-
+        /// <summary>
+        /// Returns all entities that have a component of type A.
+        /// Returned entities can have more components, but they will at least match A.
+        /// </summary>
         public IEnumerable<EntityID> QueryEntities<A>()
             where A : struct
         {
             return QueryEntities(typeof(A));
         }
 
+        /// <summary>
+        /// Returns all entities that have components of type A and B.
+        /// Returned entities can have more components, but they will at least match A and B.
+        /// </summary>
         public IEnumerable<EntityID> QueryEntities<A, B>()
             where A : struct
             where B : struct
@@ -181,6 +296,10 @@ namespace SilverECS
             return QueryEntities(typeof(A), typeof(B));
         }
 
+        /// <summary>
+        /// Returns all entities that have components of type A, B and C.
+        /// Returned entities can have more components, but they will at least match A, B and C.
+        /// </summary>
         public IEnumerable<EntityID> QueryEntities<A, B, C>()
             where A : struct
             where B : struct
@@ -189,6 +308,10 @@ namespace SilverECS
             return QueryEntities(typeof(A), typeof(B), typeof(C));
         }
 
+        /// <summary>
+        /// Returns all entities that have components of type A, B, C and D.
+        /// Returned entities can have more components, but they will at least match A, B, C and D.
+        /// </summary>
         public IEnumerable<EntityID> QueryEntities<A, B, C, D>()
             where A : struct
             where B : struct
@@ -198,6 +321,10 @@ namespace SilverECS
             return QueryEntities(typeof(A), typeof(B), typeof(C), typeof(D));
         }
 
+        /// <summary>
+        /// Returns all entities that have components of the given types.
+        /// Returned entities can have more components, but they will at least match the type list.
+        /// </summary>
         public IEnumerable<EntityID> QueryEntities(params Type[] types)
         {
             if (types.Distinct().Count() != types.Length)
@@ -227,7 +354,7 @@ namespace SilverECS
 
         private EntityArchetype GetEntityArchetype(EntityID entityID)
         {
-            return _entityArchetypes[entityID];
+            return _entityToArchetype[entityID];
         }
 
         private EntityArchetype GetOrCreateArchetype(List<Type> types)

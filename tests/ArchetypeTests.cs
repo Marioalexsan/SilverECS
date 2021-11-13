@@ -14,7 +14,6 @@ namespace SilverECS.Tests
             EntityArchetype archetype = new EntityArchetype(typeof(ComponentA), typeof(ComponentB), typeof(ComponentC));
 
             int matching = 8;
-            int nonmatching = 9;
 
             for (int i = 0; i < matching; i++)
             {

@@ -42,7 +42,12 @@ namespace SilverECS
 
         public override int GetHashCode()
         {
-            return ID.GetHashCode();
+            return ID;
+        }
+
+        public override string ToString()
+        {
+            return ID.ToString();
         }
     }
 }

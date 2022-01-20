@@ -10,34 +10,29 @@ using System.Threading.Tasks;
 namespace SilverECS
 {
     [DebuggerDisplay("Filter = {ToString()}, Entities = {Count}")]
-    internal class EntityArchetype
+    internal class Archetype
     {
         private const int PreallocationSize = 256;
 
-        private Type[] _filter;
+        private Type[] filter;
 
-        private Dictionary<EntityID, int> _entityToIndex = new Dictionary<EntityID, int>(PreallocationSize);
+        private Dictionary<Entity, int> entityIndex = new(PreallocationSize);
 
-        private List<EntityID> _locationToEntity = new List<EntityID>(PreallocationSize);
+        private List<Entity> slotEntities = new List<Entity>(PreallocationSize);
 
-        private Dictionary<Type, IList> _componentLists;
+        private Dictionary<Type, IList> componentLists;
 
-        public int Count => _entityToIndex.Count;
+        public int Count => entityIndex.Count;
 
         public IReadOnlyList<Type> Filter { get; private set; }
 
-        public EntityArchetype(params Type[] filter) : this(filter.AsEnumerable()) { }
+        public Archetype(params Type[] filter) : this(filter.AsEnumerable()) { }
 
-        public EntityArchetype(IEnumerable<Type> filter)
+        public Archetype(IEnumerable<Type> filter)
         {
-            if (filter.Any(x => !x.IsValueType || x.IsPrimitive))
-            {
-                throw new InvalidOperationException("Components must be non-primitive value types.");
-            }
+            this.filter = filter.Distinct().ToArray();
 
-            this._filter = filter.Distinct().ToArray();
-
-            this._componentLists = new Dictionary<Type, IList>(this._filter.Length);
+            this.componentLists = new Dictionary<Type, IList>(this.filter.Length);
 
             foreach (Type type in filter)
             {
@@ -45,33 +40,32 @@ namespace SilverECS
 
                 IList list = (IList)Activator.CreateInstance(listType, PreallocationSize);
 
-                _componentLists.Add(type, list);
+                componentLists.Add(type, list);
             }
 
-            Filter = Array.AsReadOnly(_filter);
+            this.Filter = Array.AsReadOnly(this.filter);
         }
 
         public bool HasType(Type type)
         {
-            return _filter.Any(x => x == type);
+            return filter.Any(x => x == type);
         }
 
         public IEnumerable<T> GetComponents<T>()
-            where T : struct
         {
             return GetComponentStorage<T>();
         }
 
-        public bool GetComponent(EntityID entityID, Type type, out object component)
+        public bool GetComponent(Entity entityID, Type type, out object component)
         {
-            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
+            if (filter.Length == 0 || !entityIndex.TryGetValue(entityID, out int index))
             {
                 component = default;
                 return false;
             }
             else
             {
-                IList list = _componentLists[type];
+                IList list = componentLists[type];
 
                 if (list != null)
                 {
@@ -86,10 +80,9 @@ namespace SilverECS
             }
         }
 
-        public bool GetComponent<T>(EntityID entityID, out T component)
-            where T : struct
+        public bool GetComponent<T>(Entity entityID, out T component)
         {
-            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
+            if (filter.Length == 0 || !entityIndex.TryGetValue(entityID, out int index))
             {
                 component = default;
                 return false;
@@ -111,15 +104,15 @@ namespace SilverECS
             }
         }
 
-        public bool SetComponent(EntityID entityID, Type type, object component)
+        public bool SetComponent(Entity entityID, Type type, object component)
         {
-            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
+            if (filter.Length == 0 || !entityIndex.TryGetValue(entityID, out int index))
             {
                 return false;
             }
             else
             {
-                IList list = _componentLists[type];
+                IList list = componentLists[type];
 
                 if (list != null)
                 {
@@ -133,10 +126,9 @@ namespace SilverECS
             }
         }
 
-        public bool SetComponent<T>(EntityID entityID, in T component)
-            where T : struct
+        public bool SetComponent<T>(Entity entityID, in T component)
         {
-            if (_filter.Length == 0 || !_entityToIndex.TryGetValue(entityID, out int index))
+            if (filter.Length == 0 || !entityIndex.TryGetValue(entityID, out int index))
             {
                 return false;
             }
@@ -156,83 +148,86 @@ namespace SilverECS
             }
         }
 
-        public IEnumerable<EntityID> GetEntities()
+        public IEnumerable<Entity> GetEntities()
         {
-            return _entityToIndex.Keys;
+            return entityIndex.Keys;
         }
 
-        public bool HasEntity(EntityID entityID)
+        public bool HasEntity(Entity entityID)
         {
-            return _entityToIndex.ContainsKey(entityID);
+            return entityIndex.ContainsKey(entityID);
         }
 
-        public bool AddEntity(EntityID entityID)
+        public bool AddEntity(Entity entityID)
         {
             if (HasEntity(entityID))
             {
                 return false;
             }
 
-            foreach (KeyValuePair<Type, IList> pair in _componentLists)
+            foreach (KeyValuePair<Type, IList> pair in componentLists)
             {
                 pair.Value.Add(Activator.CreateInstance(pair.Key));
             }
 
-            _entityToIndex.Add(entityID, Count);
-            _locationToEntity.Add(entityID);
+            entityIndex.Add(entityID, Count);
+            slotEntities.Add(entityID);
             return true;
         }
 
-        public bool AddAndPopulateEntity(EntityID entityID, IEnumerable<object> components)
+        public bool InjectEntity(Entity entityID, ComponentSet set)
         {
             if (!AddEntity(entityID))
             {
                 return false;
             }
 
-            foreach (object component in components)
+            for (int i = 0; i < set.Components.Count; i++)
             {
-                SetComponent(entityID, component.GetType(), component);
+                SetComponent(entityID, set.Types[i], set.Components[i]);
             }
 
             return true;
         }
 
-        public bool RemoveEntity(EntityID entityID)
+        public bool RemoveEntity(Entity entityID)
         {
             if (!HasEntity(entityID))
             {
                 return false;
             }
 
-            SwapSets(_entityToIndex[entityID], Count - 1);
+            SwapSets(entityIndex[entityID], Count - 1);
 
             int index = Count - 1;
 
-            foreach (KeyValuePair<Type, IList> pair in _componentLists)
+            foreach (KeyValuePair<Type, IList> pair in componentLists)
             {
                 pair.Value.RemoveAt(index);
             }
 
-            _entityToIndex.Remove(entityID);
-            _locationToEntity.RemoveAt(index);
+            entityIndex.Remove(entityID);
+            slotEntities.RemoveAt(index);
             return true;
         }
 
-        public bool ExtractAndRemoveEntity(EntityID entityID, out List<object> components)
+        public bool ExtractEntity(Entity entityID, out ComponentSet set)
         {
             if (!HasEntity(entityID))
             {
-                components = null;
+                set = default;
                 return false;
             }
 
-            components = new List<object>();
+            set.Components = new List<object>();
+            set.Types = new List<Type>();
 
-            for (int i = 0; i < _filter.Length; i++)
+            for (int i = 0; i < filter.Length; i++)
             {
-                GetComponent(entityID, _filter[i], out object component);
-                components.Add(component);
+                GetComponent(entityID, filter[i], out object component);
+
+                set.Components.Add(component);
+                set.Types.Add(filter[i]);
             }
 
             RemoveEntity(entityID);
@@ -240,9 +235,8 @@ namespace SilverECS
         }
 
         private List<T> GetComponentStorage<T>()
-            where T : struct
         {
-            foreach (IList container in _componentLists.Values)
+            foreach (IList container in componentLists.Values)
             {
                 if (container is List<T> list)
                 {
@@ -260,24 +254,24 @@ namespace SilverECS
                 return;
             }
 
-            EntityID entityA = _locationToEntity[indexA];
-            EntityID entityB = _locationToEntity[indexB];
+            Entity entityA = slotEntities[indexA];
+            Entity entityB = slotEntities[indexB];
 
-            _locationToEntity[indexA] = entityB;
-            _locationToEntity[indexB] = entityA;
+            slotEntities[indexA] = entityB;
+            slotEntities[indexB] = entityA;
 
-            foreach (Type type in _filter)
+            foreach (Type type in filter)
             {
-                IList list = _componentLists[type];
+                IList list = componentLists[type];
 
                 object componentSwap = list[indexA];
                 list[indexA] = list[indexB];
                 list[indexB] = componentSwap;
             }
 
-            int indexSwap = _entityToIndex[entityA];
-            _entityToIndex[entityA] = _entityToIndex[entityB];
-            _entityToIndex[entityB] = indexSwap;
+            int indexSwap = entityIndex[entityA];
+            entityIndex[entityA] = entityIndex[entityB];
+            entityIndex[entityB] = indexSwap;
         }
 
         /// <summary>
@@ -288,7 +282,7 @@ namespace SilverECS
             StringBuilder builder = new StringBuilder();
             builder.Append('[');
 
-            foreach (Type type in _filter)
+            foreach (Type type in filter)
             {
                 builder.Append(type.Name);
                 builder.Append(", ");

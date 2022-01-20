@@ -8,167 +8,176 @@ using System.Threading.Tasks;
 namespace SilverECS
 {
     [DebuggerDisplay("Update Systems = {UpdateStage.Count}, Renderer = {RenderStage}, Entities = {ECManager.EntityCount}")]
-    public class World : IEntityComponentManager, IMessageContainer
+    public class World : IEntityManager, IMessageContainer
     {
-        public List<ISystem> UpdateStage { get; } = new List<ISystem>();
+        private Dictionary<int, Action<Entity>> _factories = new();
 
-        public ISystem RenderStage { get; set; }
-
-        private EntityComponentManager _entityComponentManager;
+        private ArchetypeManager _archetypeManager;
 
         private MessageContainer _messageContainer;
 
-        public float TimeDilationFactor { get; } = 1f;
+        public Dictionary<string, List<ISystem>> Pipelines { get; } = new();
 
-        public int EntityCount => _entityComponentManager.EntityCount;
+        public Dictionary<string, object> NamedObjects { get; } = new();
+
+        public float TimeDilation { get; } = 1f;
+
+        public int EntityCount => _archetypeManager.EntityCount;
 
         public World()
         {
-            _entityComponentManager = new EntityComponentManager(this);
+            _archetypeManager = new ArchetypeManager(this);
             _messageContainer = new MessageContainer();
         }
 
-        /// <summary>
-        /// Runs all systems in UpdateStage.
-        /// </summary>
-        public void Update(double deltaTime)
+        public void RunPipeline(string pipelineName, double deltaTime)
         {
-            foreach (ISystem system in UpdateStage)
+            if (!Pipelines.TryGetValue(pipelineName, out var pipeline))
             {
-                system.Update(this, deltaTime * TimeDilationFactor, deltaTime);
+                throw new InvalidOperationException("The pipeline with the given name doesn't exist!");
+            }
+
+            UpdateSettings updateSettings = new()
+            {
+                TimeDilation = TimeDilation
+            };
+
+            foreach (ISystem system in pipeline)
+            {
+                system.Update(this, deltaTime, updateSettings);
             }
 
             _messageContainer.Clear();
         }
 
         /// <summary>
-        /// Runs the RenderStage system.
-        /// Use this if your framework separates Update and Render stages (such as FNA).
+        /// Sets a factory for an entity type.
+        /// Afterwards, you can specify that entity type in <see cref="CreateEntity(int)"/>
+        /// to create an entity using that factory.
         /// </summary>
-        public void Render(double deltaTime)
+        public void SetFactory(int entityType, Action<Entity> factory)
         {
-            RenderStage?.Update(this, deltaTime * TimeDilationFactor, deltaTime);
+            if (factory != null)
+            {
+                _factories[entityType] = factory;
+            }
+            else
+            {
+                _factories.Remove(entityType);
+            }
+        }
 
-            _messageContainer.Clear();
+        /// <summary>
+        /// Checks if an entity type has a factory assigned.
+        /// </summary>
+        public bool HasFactory(int entityType)
+        {
+            return _factories.ContainsKey(entityType);
+        }
+
+        /// <summary>
+        /// Creates an entity using its entity type's factory, and returns its ID.
+        /// </summary>
+        public Entity CreateEntity(int entityType)
+        {
+            Entity entity = CreateEntity();
+
+            if (_factories.ContainsKey(entityType))
+            {
+                _factories[entityType].Invoke(entity);
+            }
+
+            return entity;
         }
 
         #region Implemented interface methods
 
-        public bool AddComponent<T>(EntityID entityID) where T : struct
+        public Entity CreateEntity()
         {
-            return _entityComponentManager.AddComponent<T>(entityID);
+            return _archetypeManager.CreateEntity();
         }
 
-        public bool AddComponent<T>(EntityID entityID, in T component) where T : struct
+        public bool DestroyEntity(Entity entityID)
         {
-            return _entityComponentManager.AddComponent(entityID, component);
+            return _archetypeManager.DestroyEntity(entityID);
         }
 
-        public EntityID CreateEntity()
+        public bool HasEntity(Entity entityID)
         {
-            return _entityComponentManager.CreateEntity();
+            return _archetypeManager.HasEntity(entityID);
         }
 
-        public EntityID CreateEntity(int entityType)
+        public Entity GetParent(Entity entityID)
         {
-            return _entityComponentManager.CreateEntity(entityType);
+            return _archetypeManager.GetParent(entityID);
         }
 
-        public bool DestroyEntity(EntityID entityID)
+        public bool AddComponent<Component>(Entity entityID, in Component component = default)
         {
-            return _entityComponentManager.DestroyEntity(entityID);
+            return _archetypeManager.AddComponent(entityID, component);
         }
 
-        public bool EntityExists(EntityID entityID)
+        public bool GetComponent<Component>(Entity entityID, out Component component)
         {
-            return _entityComponentManager.EntityExists(entityID);
+            return _archetypeManager.GetComponent(entityID, out component);
         }
 
-        public bool TryGetComponent<T>(EntityID entityID, out T component) where T : struct
+        public bool HasComponent<Component>(Entity entityID)
         {
-            return _entityComponentManager.TryGetComponent(entityID, out component);
+            return _archetypeManager.HasComponent<Component>(entityID);
         }
 
-        public bool HasComponent<T>(EntityID entityID) where T : struct
+        public bool RemoveComponent<Component>(Entity entityID)
         {
-            return _entityComponentManager.HasComponent<T>(entityID);
+            return _archetypeManager.RemoveComponent<Component>(entityID);
         }
 
-        public EntityID GetParent(EntityID entityID)
+        public bool SetComponent<Component>(Entity entityID, in Component component)
         {
-            return _entityComponentManager.GetParent(entityID);
+            return _archetypeManager.SetComponent(entityID, component);
         }
 
-        public bool HasFactory(int entityType)
+        public IEnumerable<Entity> QueryEntities<A>()
         {
-            return _entityComponentManager.HasFactory(entityType);
+            return _archetypeManager.QueryEntities<A>();
         }
 
-        public IEnumerable<EntityID> QueryEntities<A>() where A : struct
+        public IEnumerable<Entity> QueryEntities<A, B>()
         {
-            return _entityComponentManager.QueryEntities<A>();
+            return _archetypeManager.QueryEntities<A, B>();
         }
 
-        public IEnumerable<EntityID> QueryEntities<A, B>()
-            where A : struct
-            where B : struct
+        public IEnumerable<Entity> QueryEntities<A, B, C>()
         {
-            return _entityComponentManager.QueryEntities<A, B>();
+            return _archetypeManager.QueryEntities<A, B, C>();
         }
 
-        public IEnumerable<EntityID> QueryEntities<A, B, C>()
-            where A : struct
-            where B : struct
-            where C : struct
+        public IEnumerable<Entity> QueryEntities<A, B, C, D>()
         {
-            return _entityComponentManager.QueryEntities<A, B, C>();
+            return _archetypeManager.QueryEntities<A, B, C, D>();
         }
 
-        public IEnumerable<EntityID> QueryEntities<A, B, C, D>()
-            where A : struct
-            where B : struct
-            where C : struct
-            where D : struct
+        public IEnumerable<Entity> QueryEntities(params Type[] types)
         {
-            return _entityComponentManager.QueryEntities<A, B, C, D>();
+            return _archetypeManager.QueryEntities(types);
         }
 
-        public IEnumerable<EntityID> QueryEntities(params Type[] types)
-        {
-            return _entityComponentManager.QueryEntities(types);
-        }
-
-        public bool RemoveComponent<T>(EntityID entityID) where T : struct
-        {
-            return _entityComponentManager.RemoveComponent<T>(entityID);
-        }
-
-        public bool SetComponent<T>(EntityID entityID, in T component) where T : struct
-        {
-            return _entityComponentManager.SetComponent(entityID, component);
-        }
-
-        public void SetFactory(int entityType, Action<EntityID, World> factory)
-        {
-            _entityComponentManager.SetFactory(entityType, factory);
-        }
-
-        public bool PopMessage<T>(out T message) where T : struct
+        public bool PopMessage<Message>(out Message message)
         {
             return _messageContainer.PopMessage(out message);
         }
 
-        public List<T> PopMessages<T>() where T : struct
+        public IEnumerable<Message> PopMessages<Message>()
         {
-            return _messageContainer.PopMessages<T>();
+            return _messageContainer.PopMessages<Message>();
         }
 
-        public void PushMessage<T>(T message) where T : struct
+        public void PushMessage<Message>(Message message)
         {
             _messageContainer.PushMessage(message);
         }
 
-        public void PushMessages<T>(IEnumerable<T> messages) where T : struct
+        public void PushMessages<Message>(IEnumerable<Message> messages)
         {
             _messageContainer.PushMessages(messages);
         }

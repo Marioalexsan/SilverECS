@@ -13,14 +13,14 @@ namespace SilverECS.Tests
         {
             World world = new World();
 
-            EntityID entityA = world.CreateEntity();
-            EntityID entityB = world.CreateEntity();
-            EntityID entityC = world.CreateEntity();
+            Entity entityA = world.CreateEntity();
+            Entity entityB = world.CreateEntity();
+            Entity entityC = world.CreateEntity();
 
             Assert.AreEqual(3, world.EntityCount);
 
-            EntityID entityD = world.CreateEntity();
-            EntityID entityE = world.CreateEntity();
+            Entity entityD = world.CreateEntity();
+            Entity entityE = world.CreateEntity();
 
             Assert.AreEqual(5, world.EntityCount);
 
@@ -35,24 +35,24 @@ namespace SilverECS.Tests
 
             Assert.AreEqual(0, world.EntityCount);
 
-            EntityID entity = world.CreateEntity();
+            Entity entity = world.CreateEntity();
 
             // Entity component addition / deletion defers to the assigned world
 
-            Assert.IsFalse(world.TryGetComponent<ComponentB>(entity, out _));
+            Assert.IsFalse(world.GetComponent<ComponentB>(entity, out _));
 
             world.AddComponent<ComponentA>(entity);
             world.AddComponent<ComponentC>(entity);
 
-            Assert.IsTrue(world.TryGetComponent<ComponentA>(entity, out _));
-            Assert.IsFalse(world.TryGetComponent<ComponentB>(entity, out _));
-            Assert.IsTrue(world.TryGetComponent<ComponentC>(entity, out _));
+            Assert.IsTrue(world.GetComponent<ComponentA>(entity, out _));
+            Assert.IsFalse(world.GetComponent<ComponentB>(entity, out _));
+            Assert.IsTrue(world.GetComponent<ComponentC>(entity, out _));
 
             world.RemoveComponent<ComponentA>(entity);
 
-            Assert.IsFalse(world.TryGetComponent<ComponentA>(entity, out _));
-            Assert.IsFalse(world.TryGetComponent<ComponentB>(entity, out _));
-            Assert.IsTrue(world.TryGetComponent<ComponentC>(entity, out _));
+            Assert.IsFalse(world.GetComponent<ComponentA>(entity, out _));
+            Assert.IsFalse(world.GetComponent<ComponentB>(entity, out _));
+            Assert.IsTrue(world.GetComponent<ComponentC>(entity, out _));
 
             world.DestroyEntity(entity);
 
@@ -64,7 +64,7 @@ namespace SilverECS.Tests
         {
             World world = new World();
 
-            EntityID entity;
+            Entity entity;
 
             entity = world.CreateEntity();
 

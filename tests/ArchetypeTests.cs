@@ -11,13 +11,15 @@ namespace SilverECS.Tests
         [TestMethod]
         public void EntityManipulation()
         {
-            EntityArchetype archetype = new EntityArchetype(typeof(ComponentA), typeof(ComponentB), typeof(ComponentC));
+            long idIndex = 0;
+
+            Archetype archetype = new Archetype(typeof(ComponentA), typeof(ComponentB), typeof(ComponentC));
 
             int matching = 8;
 
             for (int i = 0; i < matching; i++)
             {
-                EntityID entity = new EntityID(i);
+                Entity entity = new Entity(null, idIndex++);
 
                 object[] components = new object[]
                 {
@@ -26,7 +28,7 @@ namespace SilverECS.Tests
                     new ComponentC(),
                 };
 
-                archetype.AddAndPopulateEntity(entity, components);
+                archetype.InjectEntity(entity, ComponentSet.From(components));
 
                 Assert.IsTrue(archetype.GetComponent<ComponentA>(entity, out _));
                 Assert.IsTrue(archetype.GetComponent<ComponentB>(entity, out _));
@@ -43,11 +45,11 @@ namespace SilverECS.Tests
 
             for (int i = 0; i < todelete; i++)
             {
-                EntityID entity = archetype.GetEntities().First();
+                Entity entity = archetype.GetEntities().First();
 
-                archetype.ExtractAndRemoveEntity(entity, out var components);
+                archetype.ExtractEntity(entity, out var components);
 
-                Assert.AreEqual(3, components.Count());
+                Assert.AreEqual(3, components.Types.Count());
                 Assert.AreEqual(matching - i - 1, archetype.Count);
 
                 Assert.AreEqual(matching - i - 1, archetype.GetComponents<ComponentA>().Count());
@@ -57,7 +59,7 @@ namespace SilverECS.Tests
 
             for (int i = 0; i < matching; i++)
             {
-                EntityID entity = new EntityID();
+                Entity entity = new Entity(null, idIndex++);
 
                 object[] components = new object[]
                 {
@@ -66,7 +68,7 @@ namespace SilverECS.Tests
                     new ComponentC(),
                 };
 
-                archetype.AddAndPopulateEntity(entity, components);
+                archetype.InjectEntity(entity, ComponentSet.From(components));
 
                 Assert.IsTrue(archetype.GetComponent<ComponentA>(entity, out _));
                 Assert.IsTrue(archetype.GetComponent<ComponentB>(entity, out _));
@@ -77,13 +79,13 @@ namespace SilverECS.Tests
         [TestMethod]
         public void ArchetypeInfo()
         {
-            EntityArchetype archetypeOne = new EntityArchetype(typeof(ComponentA), typeof(ComponentC));
+            Archetype archetypeOne = new Archetype(typeof(ComponentA), typeof(ComponentC));
 
             Assert.IsTrue(archetypeOne.HasType(typeof(ComponentA)));
             Assert.IsTrue(archetypeOne.HasType(typeof(ComponentC)));
             Assert.IsFalse(archetypeOne.HasType(typeof(ComponentD)));
 
-            EntityArchetype archetypeThree = new EntityArchetype(typeof(ComponentA), typeof(ComponentB), typeof(ComponentC));
+            Archetype archetypeThree = new Archetype(typeof(ComponentA), typeof(ComponentB), typeof(ComponentC));
 
             Assert.IsTrue(archetypeThree.HasType(typeof(ComponentA)));
             Assert.IsTrue(archetypeThree.HasType(typeof(ComponentB)));
@@ -94,13 +96,15 @@ namespace SilverECS.Tests
         [TestMethod]
         public void Queries()
         {
-            EntityArchetype archetype = new EntityArchetype(typeof(ComponentA), typeof(ComponentC), typeof(ComponentD), typeof(ComponentE));
+            long idIndex = 0;
+
+            Archetype archetype = new Archetype(typeof(ComponentA), typeof(ComponentC), typeof(ComponentD), typeof(ComponentE));
 
             int count = 5;
 
             for (int i = 0; i < count; i++)
             {
-                EntityID loopEntity = new EntityID(i);
+                Entity loopEntity = new Entity(null, idIndex++);
 
                 object[] loopComponents = new object[]
                 {
@@ -110,14 +114,14 @@ namespace SilverECS.Tests
                     new ComponentE(),
                 };
 
-                archetype.AddAndPopulateEntity(loopEntity, loopComponents);
+                archetype.InjectEntity(loopEntity, ComponentSet.From(loopComponents));
             }
 
             Assert.AreEqual(count, archetype.GetComponents<ComponentA>().Count());
             Assert.AreEqual(null, archetype.GetComponents<ComponentB>());
             Assert.AreEqual(count, archetype.GetComponents<ComponentC>().Count());
 
-            EntityID entity = new EntityID(100);
+            Entity entity = new Entity(null, 100);
 
             object[] components = new object[]
             {
@@ -127,7 +131,7 @@ namespace SilverECS.Tests
                     new ComponentE(),
             };
 
-            archetype.AddAndPopulateEntity(entity, components);
+            archetype.InjectEntity(entity, ComponentSet.From(components));
 
             Assert.IsTrue(archetype.GetComponent<ComponentA>(entity, out _));
             Assert.IsFalse(archetype.GetComponent<ComponentB>(entity, out _));

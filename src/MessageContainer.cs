@@ -9,15 +9,14 @@ namespace SilverECS
     /// </summary>
     public class MessageContainer : IMessageContainer
     {
-        private Dictionary<Type, IList> _storage = new Dictionary<Type, IList>();
+        private Dictionary<Type, IList> storage = new Dictionary<Type, IList>();
 
         /// <summary>
         /// Adds a message of the given type to the container.
         /// </summary>
-        public void PushMessage<T>(T message)
-            where T : struct
+        public void PushMessage<Message>(Message message)
         {
-            List<T> list = GetStorage<T>();
+            List<Message> list = GetStorage<Message>();
 
             list.Add(message);
         }
@@ -25,10 +24,9 @@ namespace SilverECS
         /// <summary>
         /// Adds all of the messages of the given type to the container.
         /// </summary>
-        public void PushMessages<T>(IEnumerable<T> messages)
-            where T : struct
+        public void PushMessages<Message>(IEnumerable<Message> messages)
         {
-            List<T> list = GetStorage<T>();
+            List<Message> list = GetStorage<Message>();
 
             list.AddRange(messages);
         }
@@ -37,10 +35,9 @@ namespace SilverECS
         /// Removes a message of the given type from the container and returns it in the out parameter.
         /// Returns true if a message was retrieved, false if no messages were found.
         /// </summary>
-        public bool PopMessage<T>(out T message)
-            where T : struct
+        public bool PopMessage<Message>(out Message message)
         {
-            List<T> list = GetStorage<T>();
+            List<Message> list = GetStorage<Message>();
 
             if (list.Count > 0)
             {
@@ -59,36 +56,34 @@ namespace SilverECS
         /// <summary>
         /// Removes all messages of the given type from the container (if any), and returns them in a list.
         /// </summary>
-        public List<T> PopMessages<T>()
-            where T : struct
+        public IEnumerable<Message> PopMessages<Message>()
         {
-            List<T> list = GetStorage<T>();
+            List<Message> list = GetStorage<Message>();
 
-            _storage[typeof(T)] = new List<T>(list.Capacity / 2 + 1);
+            storage[typeof(Message)] = new List<Message>(list.Capacity / 2 + 1);
 
             return list;
         }
 
         internal void Clear()
         {
-            foreach (IList list in _storage.Values)
+            foreach (IList list in storage.Values)
             {
                 list.Clear();
             }
         }
 
-        private List<T> GetStorage<T>()
-            where T : struct
+        private List<Message> GetStorage<Message>()
         {
-            if (_storage.TryGetValue(typeof(T), out IList container))
+            if (storage.TryGetValue(typeof(Message), out IList container))
             {
-                return (List<T>)container;
+                return (List<Message>)container;
             }
             else
             {
-                List<T> list = new List<T>();
+                List<Message> list = new List<Message>();
 
-                _storage[typeof(T)] = list;
+                storage[typeof(Message)] = list;
 
                 return list;
             }

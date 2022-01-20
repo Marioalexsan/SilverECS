@@ -13,6 +13,6 @@ namespace SilverECS
     [DebuggerDisplay("Parent = {Parent}")]
     public struct EntityParent
     {
-        public EntityID Parent;
+        public Entity Parent;
     }
 }

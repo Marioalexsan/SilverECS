@@ -11,6 +11,6 @@ namespace SilverECS
     /// </summary>
     public interface ISystem
     {
-        void Update(World world, double gameTime, double realTime);
+        void Update(World world, double deltaTime, UpdateSettings updateSettings);
     }
 }

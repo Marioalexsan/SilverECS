@@ -10,16 +10,19 @@
   </PropertyGroup>
 
   <ItemGroup>
+    <Compile Include="src\Archetype.cs" />
+    <Compile Include="src\ArchetypeManager.cs" />
     <Compile Include="src\AssemblyInfo.cs" />
-    <Compile Include="src\EntityArchetype.cs" />
-    <Compile Include="src\EntityComponentManager.cs" />
-    <Compile Include="src\EntityID.cs" />
-    <Compile Include="src\EntityIDExtension.cs" />
+    <Compile Include="src\ComponentSet.cs" />
+    <Compile Include="src\Entity.cs" />
     <Compile Include="src\EntityParent.cs" />
-    <Compile Include="src\IEntityComponentManager.cs" />
+    <Compile Include="src\GameLoop.cs" />
+    <Compile Include="src\IEntityManager.cs" />
+    <Compile Include="src\IEntityStorage.cs" />
     <Compile Include="src\IMessageContainer.cs" />
     <Compile Include="src\ISystem.cs" />
     <Compile Include="src\MessageContainer.cs" />
+    <Compile Include="src\UpdateSettings.cs" />
     <Compile Include="src\World.cs" />
   </ItemGroup>
 
